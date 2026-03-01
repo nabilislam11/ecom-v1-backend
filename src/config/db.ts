@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { env } from "./env.js";
 
 export const connectDB = async (): Promise<void> => {
   const mongoUri = process.env.MONGODB_URI;
@@ -14,11 +15,11 @@ export const connectDB = async (): Promise<void> => {
       // --- CONNECTION POOLING (Scales from Free to Paid) ---
       maxPoolSize: 50, // 50 pipes is plenty for 2k-3k users, and keeps you safely under the 500 Free Tier limit.
       minPoolSize: 10, // Keeps 10 pipes warm so sudden traffic spikes don't cause cold-start delays.
-      
+
       // --- TIMEOUTS & RESILIENCE ---
       serverSelectionTimeoutMS: 5000, // If the DB is completely down, fail after 5s instead of hanging users forever.
       socketTimeoutMS: 45000, // Close inactive sockets after 45s to free up memory.
-      
+
       // --- NETWORK FIXES ---
       family: 4, // Forces IPv4 to prevent random DNS 'EAI_AGAIN' errors.
     });
@@ -26,7 +27,7 @@ export const connectDB = async (): Promise<void> => {
     console.log("✅ MongoDB Connected Successfully (Production Pool Active)");
   } catch (error) {
     console.error("❌ MongoDB Connection Error on Startup:", error);
-    process.exit(1); 
+    process.exit(1);
   }
 };
 
@@ -52,5 +53,5 @@ const gracefulShutdown = async () => {
 };
 
 // Listen for termination signals from your VPS (like AWS, DigitalOcean, or PM2)
-process.on("SIGINT", gracefulShutdown);  // Ctrl+C in terminal
+process.on("SIGINT", gracefulShutdown); // Ctrl+C in terminal
 process.on("SIGTERM", gracefulShutdown); // Kill command from process manager

@@ -10,15 +10,15 @@ const setCookies = (res: Response, access: string, refresh?: string) => {
   res.cookie("accessToken", access, {
     httpOnly: true,
     secure: isProd,
-    sameSite: "lax",
-    maxAge: 15 * 60 * 1000,
+    sameSite: isProd ? "strict" : "none",
+    maxAge: 15 * 60 * 1000, //15 min
   });
   if (refresh) {
     res.cookie("refreshToken", refresh, {
       httpOnly: true,
       secure: isProd,
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: isProd ? "strict" : "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
   }
 };

@@ -1,9 +1,25 @@
+// GLOBAL CRASH NETS (Must be at the very top!)
+process.on("uncaughtException", (err) => {
+  console.error("🔥 UNCAUGHT EXCEPTION! Shutting down...");
+  console.error(err.name, err.message, err.stack);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (err: any) => {
+  console.error("🔥 UNHANDLED REJECTION! Shutting down...");
+  console.error(err.name, err.message, err.stack);
+  process.exit(1);
+});
+
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { connectDB } from "./config/db.js"; // Assuming you put our DB code here
 import authRoutes from "./modules/auth/auth.routes.js";
 import userRoutes from "./modules/user/user.routes.js";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 
@@ -14,7 +30,7 @@ app.set("trust proxy", 1);
 app.use(
   cors({
     // In production, this MUST be your exact frontend URL (e.g., "https://my-store.com")
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: process.env.FRONTEND_URL || "*",
     credentials: true, // This is the magic line that allows cookies to pass!
   }),
 );
