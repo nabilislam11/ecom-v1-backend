@@ -3,6 +3,8 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import type { ForgotPasswordDTO, LoginDTO, RegisterDTO, ResetPasswordDTO } from "./auth.schema.js";
 import { User } from "../user/user.model.js";
+import { getPasswordResetTemplate } from "../../templates/auth.templates.js";
+import { emailQueue } from "../../config/queue.js";
 
 // Helper function to generate tokens
 const generateTokens = (user: any) => {
@@ -77,14 +79,13 @@ export async function refreshSession(token: string) {
 export async function forgotPassword(data: ForgotPasswordDTO) {
   const user = await User.findOne({ email: data.email });
 
-  // SECURITY MEASURE: If the user doesn't exist, we silently return.
-  // We don't want to tell hackers which emails are registered in our database!
+  // SECURITY MEASURE: Silently return if user doesn't exist
   if (!user) return;
 
   // 1. Generate a random 32-character hex string for the email link
   const resetToken = crypto.randomBytes(32).toString("hex");
 
-  // 2. Hash that token before saving it to the database (Security standard)
+  // 2. Hash that token before saving it to the database
   const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
 
   // 3. Save the hashed token and set it to expire in 15 minutes
@@ -92,16 +93,33 @@ export async function forgotPassword(data: ForgotPasswordDTO) {
   user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
   await user.save();
 
-  // IN PRODUCTION: Here is where you would trigger your email service (Resend, SendGrid, etc.)
-  // e.g., sendEmail(user.email, `https://yourdomain.com/reset-password?token=${resetToken}`);
-  console.log(`[DEV MODE] Email sent with token: ${resetToken}`);
+  // 4. Generate the frontend link and HTML template
+  const resetLink = `https://localhost:4200/api/auth/reset-password?token=${resetToken}`;
+  const emailHtml = getPasswordResetTemplate(resetLink);
+
+  // 5. 🚀 DROP IT IN THE QUEUE!
+  await emailQueue.add(
+    "send-forgot-password",
+    {
+      type: "PASSWORD_RESET",
+      to: user.email,
+      subject: "Reset Your Password",
+      html: emailHtml,
+    },
+    {
+      attempts: 3,
+      backoff: { type: "exponential", delay: 5000 },
+    },
+  );
+
+  console.log(`📝 Redis Task Queued: Password Reset Email for ${user.email}`);
 }
 
 export async function resetPassword(data: ResetPasswordDTO) {
   // 1. Hash the incoming token so we can compare it to the one in the DB
   const hashedToken = crypto.createHash("sha256").update(data.token).digest("hex");
 
-  // 2. Find the user with this token, ensuring it hasn't expired yet ($gt = greater than)
+  // 2. Find the user with this token, ensuring it hasn't expired yet
   const user = await User.findOne({
     resetPasswordToken: hashedToken,
     resetPasswordExpires: { $gt: Date.now() },
@@ -117,9 +135,14 @@ export async function resetPassword(data: ResetPasswordDTO) {
   user.resetPasswordToken = undefined;
   user.resetPasswordExpires = undefined;
 
-  // 5. CRITICAL: Increment token version! This instantly logs the user out of all
-  // old devices so a hacker can't keep using the account after a password reset.
+  // 5. CRITICAL: Increment token version! Instantly logs out old sessions.
   user.tokenVersion += 1;
 
   await user.save();
+  console.log(`✅ Password successfully changed for ${user.email}`);
+}
+
+export async function logoutUser(userId: string) {
+  // Increments the token version, instantly invalidating all currently issued JWTs
+  await User.findByIdAndUpdate(userId, { $inc: { tokenVersion: 1 } });
 }

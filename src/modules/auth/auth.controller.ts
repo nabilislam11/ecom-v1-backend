@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema } from "./auth.schema.js";
 import * as AuthService from "./auth.service.js";
-import { User } from "../user/user.model.js";
+import { cookieOptions } from "../../lib/jwt.js";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -26,14 +26,16 @@ const setCookies = (res: Response, access: string, refresh?: string) => {
 export async function registerHandler(req: Request, res: Response) {
   try {
     const parsed = registerSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ errors: parsed.error.issues });
+    if (!parsed.success) {
+      return res.status(400).json({ errors: parsed.error.format() });
+    }
 
-    const { user, accessToken, refreshToken } = await AuthService.registerUser(parsed.data);
-    setCookies(res, accessToken, refreshToken);
-
-    return res.status(201).json({ message: "Registered successfully", user: { id: user.id, email: user.email } });
+    const user = await AuthService.registerUser(parsed.data);
+    return res.status(201).json({ message: "User registered successfully", user });
   } catch (error: any) {
-    if (error.message === "Email already in use") return res.status(409).json({ message: error.message });
+    if (error.message === "EMAIL_IN_USE") {
+      return res.status(409).json({ message: "Email already in use" });
+    }
     return res.status(500).json({ message: "Internal server error" });
   }
 }
@@ -41,14 +43,28 @@ export async function registerHandler(req: Request, res: Response) {
 export async function loginHandler(req: Request, res: Response) {
   try {
     const parsed = loginSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ errors: parsed.error.issues });
+    if (!parsed.success) {
+      return res.status(400).json({ errors: parsed.error.format() });
+    }
 
     const { user, accessToken, refreshToken } = await AuthService.loginUser(parsed.data);
-    setCookies(res, accessToken, refreshToken);
 
-    return res.status(200).json({ message: "Login successful", user: { id: user.id, email: user.email } });
+    // Set cookies using the centralized security options from our lib
+    res.cookie("accessToken", accessToken, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return res.status(200).json({ message: "Logged in successfully", user });
   } catch (error: any) {
-    if (error.message === "Invalid credentials") return res.status(401).json({ message: error.message });
+    if (error.message === "INVALID_CREDENTIALS") {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
     return res.status(500).json({ message: "Internal server error" });
   }
 }
@@ -72,15 +88,19 @@ export async function refreshHandler(req: Request, res: Response) {
 
 export async function logoutHandler(req: Request, res: Response) {
   try {
-    // We need the user ID from the request to update their token version.
-    // To do this, you MUST add `requireAuth` middleware to the /logout route!
-    const userId = (req as any).user.id;
+    // 1. Safely extract the user ID attached by the requireAuth middleware
+    const userId = (req as any).user?.id;
 
-    // This single line instantly kills all stolen tokens
-    await User.findByIdAndUpdate(userId, { $inc: { tokenVersion: 1 } });
+    // Edge Case Check: If middleware failed to attach user, still clear cookies to be safe
+    if (userId) {
+      // 2. Invalidate the token in the database via the Service layer
+      await AuthService.logoutUser(userId);
+    }
 
-    res.clearCookie("accessToken");
-    res.clearCookie("refreshToken");
+    // 3. THE LOGOUT FIX: Clear cookies using the EXACT SAME options as login
+    res.clearCookie("accessToken", cookieOptions);
+    res.clearCookie("refreshToken", cookieOptions);
+
     return res.status(200).json({ message: "Logged out successfully across all devices" });
   } catch (error) {
     return res.status(500).json({ message: "Internal server error during logout" });

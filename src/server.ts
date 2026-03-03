@@ -17,9 +17,11 @@ import cookieParser from "cookie-parser";
 import { connectDB } from "./config/db.js"; // Assuming you put our DB code here
 import authRoutes from "./modules/auth/auth.routes.js";
 import userRoutes from "./modules/user/user.routes.js";
-import dotenv from "dotenv";
-
-dotenv.config();
+import productRoutes from "./modules/product/product.routes.js";
+// redis and email import
+import "./config/redis.js";
+import "./jobs/email.worker.js";
+import { env } from "./config/env.js";
 
 const app = express();
 
@@ -30,7 +32,7 @@ app.set("trust proxy", 1);
 app.use(
   cors({
     // In production, this MUST be your exact frontend URL (e.g., "https://my-store.com")
-    origin: process.env.FRONTEND_URL || "*",
+    origin: "*", // env.FRONTEND_URL
     credentials: true, // This is the magic line that allows cookies to pass!
   }),
 );
@@ -42,9 +44,10 @@ app.use(cookieParser()); // Parses req.cookies!
 // 4. Register Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/products", productRoutes);
 
 // 5. Start Server
-const PORT = process.env.PORT || 5000;
+const PORT = env.PORT || 5000;
 
 // Connect to DB first, then start listening
 connectDB().then(() => {
