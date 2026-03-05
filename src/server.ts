@@ -14,7 +14,7 @@ process.on("unhandledRejection", (err: any) => {
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { connectDB } from "./config/db.js"; // Assuming you put our DB code here
+import { connectDB } from "./config/db.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import adminRoutes from "./modules/admin/admin.routes.js";
 import productRoutes from "./modules/product/product.routes.js";
@@ -38,6 +38,7 @@ app.use(
     credentials: true, // This is the magic line that allows cookies to pass!
   }),
 );
+app.use("/api/payments", paymentRoutes);
 
 // 3. Body & Cookie Parsers (The Cookie Fix)
 app.use(express.json()); // Parses req.body
@@ -48,7 +49,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/order", orderRoutes);
-app.use("/api/payments", paymentRoutes);
 // 5. Start Server
 const PORT = env.PORT || 5000;
 

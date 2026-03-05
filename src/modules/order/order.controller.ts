@@ -36,3 +36,24 @@ export async function getAllOrdersHandler(req: Request, res: Response) {
     return res.status(500).json({ message: "Internal server error fetching orders" });
   }
 }
+
+export async function getOrderBySessionHandler(req: Request, res: Response) {
+  try {
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({ message: "Session ID is required" });
+    }
+
+    const order = await OrderService.getOrderBySessionId(sessionId as string);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Return the full order data to the frontend so it can draw the receipt!
+    return res.status(200).json(order);
+  } catch (error: any) {
+    return res.status(500).json({ message: "Failed to fetch order details" });
+  }
+}

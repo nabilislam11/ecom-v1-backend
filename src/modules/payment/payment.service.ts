@@ -36,8 +36,8 @@ export async function createCheckoutSession(order: any) {
     client_reference_id: order._id.toString(),
 
     // Where Stripe sends them after they pay (Update these to your real frontend URLs later)
-    success_url: `http://localhost:3000/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `http://localhost:3000/checkout/cart`,
+    success_url: `http://localhost:${env.PORT}/order/session/{CHECKOUT_SESSION_ID}`,
+    cancel_url: `http://localhost:${env.PORT}/order/session/{CHECKOUT_SESSION_ID}`,
 
     // We strictly enforce US shipping
     shipping_address_collection: {

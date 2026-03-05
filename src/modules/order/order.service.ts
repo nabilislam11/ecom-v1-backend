@@ -49,3 +49,9 @@ export async function createPendingOrder(data: CreateOrderDTO, userId?: string) 
 export async function getAllOrders() {
   return await Order.find().sort({ createdAt: -1 });
 }
+
+export async function getOrderBySessionId(sessionId: string) {
+  // We use findOne to search by the stripeSessionId field
+  const order = await Order.findOne({ stripeSessionId: sessionId });
+  return order;
+}
